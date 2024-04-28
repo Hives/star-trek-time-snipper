@@ -1,23 +1,28 @@
 #! /usr/bin/env node
 
-import { readdirSync, readFileSync } from "fs"
+import { readdirSync, readFileSync, existsSync } from "fs"
 import { join, resolve } from "path"
 import { execSync } from "child_process"
 
 /**
- * Represents a clip - episode title, start timestamp and end timestamp
- * @typedef {[string, string, string]} Clip
+ * Represents a clip - episode title, episode number, start timestamp and end timestamp
+ * @typedef {[string, string, string, string]} Clip
  */
 
 /**
-  * Zero-pads a number to two digits
+  * Zero-pads a string
   * @param {string | number} input 
+  * @param {number} length 
   */
-function twoDigits(input) {
+function zeroPad(input, length) {
   const inputString = String(input)
-  if (inputString.length < 1) return '00'
-  if (inputString.length < 2) return '0' + inputString
-  return inputString
+
+  const zerosRequired = length - inputString.length
+  if (zerosRequired < 0) return inputString
+
+  const zeroString = "0".repeat(zerosRequired)
+
+  return zeroString + inputString
 }
 
 /**
@@ -35,7 +40,7 @@ function parseTimestamp(input) {
   * @param {[number, number, number, number]} input 
   */
 function unparseTimestamp(input) {
-  const [hours, minutes, seconds, millis] = input.map(twoDigits)
+  const [hours, minutes, seconds, millis] = input.map(n => zeroPad(n, 2))
   return `${hours}:${minutes}:${seconds}.${millis}`
 }
 
@@ -74,15 +79,20 @@ function bump(input, amount) {
 /**
   * Runs an ffmpeg command to clip a segment from an episode
   * @param {Clip} clip 
-  * @param {string} outputName 
+  * @param {number} index 
   */
-function snip(clip, outputName) {
-  const [title, start, end] = clip
-  const file = files.find(f => (new RegExp(title)).exec(f))
+function snip(clip, index) {
+  const [title, episode, start, end] = clip
+  const file = files.find(f => (new RegExp(title, "i")).exec(f))
   if (!file) throw new Error(`Failed to find file for title ${title}`)
-  const filePath = resolve(join(folder, file))
+
+  const inputFilePath = resolve(join(folder, file))
+
+  const outputFilePath = `clips/${episode}-${zeroPad(index, 4)}.mp4`
+  if (existsSync(outputFilePath)) return
+
   const command =
-    `ffmpeg -i "${filePath}" -ss ${bump(start, -10)} -to ${bump(end, 10)} -c:v copy -c:a copy -fflags +genpts clips/${outputName}.mp4`
+    `ffmpeg -i "${inputFilePath}" -ss ${bump(start, -10)} -to ${bump(end, 10)} -c:v copy -c:a copy -fflags +genpts ${outputFilePath}`
   // console.log(command)
   execSync(command)
 }
@@ -91,17 +101,17 @@ const clipsFile = readFileSync("./output.json")
 
 const clips = JSON.parse(clipsFile.toString()).map(clip => {
   const [_, subsFile, start, end] = clip
-  const title = subsFile.split("/").at(-1).split(" - ").at(-1).split(".")[0].split("  ")[0]
-  return [title, start.replace(",", "."), end.replace(",", ".")]
+  const fileName = subsFile.split("/").at(-1)
+  const title = fileName.split(" - ").at(-1).split(".")[0].split("  ")[0]
+  const episode = fileName.split(" - ")[1]
+  return [title, episode, start.replace(",", "."), end.replace(",", ".")]
 })
 
 const folder = "../../Downloads/Star\ Trek\ TNG\ S01\ 1080P/"
 const files = readdirSync(folder)
 
-const farpointClips = clips.filter(([title]) => title.includes("Farpoint"))
-
 let c = 0;
-for (const clip of farpointClips) {
-  snip(clip, `farpoint-${c}`)
+for (const [index, clip] of clips.entries()) {
+  snip(clip, index)
   c++
 }
