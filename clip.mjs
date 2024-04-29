@@ -5,14 +5,14 @@ import { join, resolve } from "path"
 import { execSync } from "child_process"
 
 /**
- * Represents a clip - episode title, episode number, start timestamp and end timestamp
+ * Represents a clip - episode title, episode number, start timestamp, end timestamp
  * @typedef {[string, string, string, string]} Clip
  */
 
 /**
-  * Zero-pads a string
-  * @param {string | number} input 
-  * @param {number} length 
+  * Zero-pads a string. If string is longer than requested length, returns the string.
+  * @param {string | number} input
+  * @param {number} length
   */
 function zeroPad(input, length) {
   const inputString = String(input)
@@ -27,7 +27,7 @@ function zeroPad(input, length) {
 
 /**
   * Parses a timestamp string into an array of hours, minutes, seconds and milliseconds
-  * @param {string} input 
+  * @param {string} input
   */
 function parseTimestamp(input) {
   const [start, millis] = input.split(".")
@@ -37,7 +37,7 @@ function parseTimestamp(input) {
 
 /**
   * Unparses an array of hours, minutes, seconds and milliseconds into a timestamp string
-  * @param {[number, number, number, number]} input 
+  * @param {[number, number, number, number]} input
   */
 function unparseTimestamp(input) {
   const [hours, minutes, seconds, millis] = input.map(n => zeroPad(n, 2))
@@ -46,8 +46,8 @@ function unparseTimestamp(input) {
 
 /**
   * Bumps a timestamp up or down by a number of seconds
-  * @param {string} input 
-  * @param {number} amount 
+  * @param {string} input
+  * @param {number} amount
   */
 function bump(input, amount) {
   let [hours, minutes, seconds, millis] = parseTimestamp(input)
@@ -78,8 +78,8 @@ function bump(input, amount) {
 
 /**
   * Runs an ffmpeg command to clip a segment from an episode
-  * @param {Clip} clip 
-  * @param {number} index 
+  * @param {Clip} clip
+  * @param {number} index
   */
 function snip(clip, index) {
   const [title, episode, start, end] = clip
@@ -92,7 +92,7 @@ function snip(clip, index) {
   if (existsSync(outputFilePath)) return
 
   const command =
-    `ffmpeg -i "${inputFilePath}" -ss ${bump(start, -10)} -to ${bump(end, 10)} -c:v copy -c:a copy -fflags +genpts ${outputFilePath}`
+    `~/Downloads/ffmpeg-git-20240301-i686-static/ffmpeg -ss ${bump(start, -5)} -to ${bump(end, 10)} -i "${inputFilePath}" -c:v copy -c:a copy ${outputFilePath}`
   // console.log(command)
   execSync(command)
 }
@@ -110,8 +110,6 @@ const clips = JSON.parse(clipsFile.toString()).map(clip => {
 const folder = "../../Downloads/Star\ Trek\ TNG\ S01\ 1080P/"
 const files = readdirSync(folder)
 
-let c = 0;
 for (const [index, clip] of clips.entries()) {
   snip(clip, index)
-  c++
 }
